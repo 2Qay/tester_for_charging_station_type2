@@ -299,8 +299,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOE, LCD_B2_Pin|LCD_B3_Pin|LCD_B4_Pin|LCD_B5_Pin
                           |LCD_B6_Pin|LCD_B7_Pin|LCD_RST_Pin|LCD_PCB_Pin
-                          |LCD_E_Pin|LCD_RW_Pin|LCD_RS_Pin|LCD_B0_Pin
-                          |LCD_B1_Pin, GPIO_PIN_RESET);
+                          |LCD_E_Pin|LCD_RW_Pin|LCD_RS_Pin|HUI_Pin
+                          |LCD_B0_Pin|LCD_B1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, CP_ERR_Pin|CP_D_Pin|CP_C_Pin|CP_B_Pin, GPIO_PIN_RESET);
@@ -310,12 +310,12 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : LCD_B2_Pin LCD_B3_Pin LCD_B4_Pin LCD_B5_Pin
                            LCD_B6_Pin LCD_B7_Pin LCD_RST_Pin LCD_PCB_Pin
-                           LCD_E_Pin LCD_RW_Pin LCD_RS_Pin LCD_B0_Pin
-                           LCD_B1_Pin */
+                           LCD_E_Pin LCD_RW_Pin LCD_RS_Pin HUI_Pin
+                           LCD_B0_Pin LCD_B1_Pin */
   GPIO_InitStruct.Pin = LCD_B2_Pin|LCD_B3_Pin|LCD_B4_Pin|LCD_B5_Pin
                           |LCD_B6_Pin|LCD_B7_Pin|LCD_RST_Pin|LCD_PCB_Pin
-                          |LCD_E_Pin|LCD_RW_Pin|LCD_RS_Pin|LCD_B0_Pin
-                          |LCD_B1_Pin;
+                          |LCD_E_Pin|LCD_RW_Pin|LCD_RS_Pin|HUI_Pin
+                          |LCD_B0_Pin|LCD_B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
