@@ -1,0 +1,9 @@
+../Core/Src/lcd.c:3:6:lcd_delay	16	static
+../Core/Src/lcd.c:11:6:lcd_write	16	static
+../Core/Src/lcd.c:24:6:lcd_write_data	16	static
+../Core/Src/lcd.c:34:6:lcd_write_command	16	static
+../Core/Src/lcd.c:43:6:lcd_initialization	8	static
+../Core/Src/lcd.c:65:6:lcd_set_cursor	16	static
+../Core/Src/lcd.c:88:6:lcd_draw_char	16	static
+../Core/Src/lcd.c:93:6:lcd_draw_text	24	static
+../Core/Src/lcd.c:103:6:lcd_clear_display	8	static

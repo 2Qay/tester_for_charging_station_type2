@@ -1,0 +1,9 @@
+lcd.c:3:6:lcd_delay	2
+lcd.c:11:6:lcd_write	9
+lcd.c:24:6:lcd_write_data	1
+lcd.c:34:6:lcd_write_command	1
+lcd.c:43:6:lcd_initialization	1
+lcd.c:65:6:lcd_set_cursor	5
+lcd.c:88:6:lcd_draw_char	1
+lcd.c:93:6:lcd_draw_text	2
+lcd.c:103:6:lcd_clear_display	1
