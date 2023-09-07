@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "lcd.h"
+//#include "math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -100,11 +101,222 @@ void set_status_E(void)
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
 }
 
+uint8_t str_tx[100];
+void hello_world(void)
+{
+	  set_status_A();
+	  lcd_initialization();
+	  HAL_Delay(200);
+
+	  lcd_set_cursor(0, 0);
+	  sprintf(str_tx, "Лямбда электроника");
+	  lcd_draw_text(str_tx);
+	  lcd_set_cursor(0, 1);
+	  sprintf(str_tx, "при поддержке");
+	  lcd_draw_text(str_tx);
+	  lcd_set_cursor(0, 2);
+	  sprintf(str_tx, "Фонда содействия");
+	  lcd_draw_text(str_tx);
+	  lcd_set_cursor(0, 3);
+	  sprintf(str_tx, "инновациям");
+	  lcd_draw_text(str_tx);
+	  HAL_Delay(1000);
+}
+
+uint32_t PP_adc;
+float PP_value;
+uint32_t cable_current;
+void read_PP(void)
+{
+		HAL_ADC_Start(&hadc3);
+		HAL_ADC_PollForConversion(&hadc3,100);
+		PP_adc = (uint32_t) HAL_ADC_GetValue(&hadc3);
+		HAL_ADC_Stop(&hadc3);
+		PP_value = (float)PP_adc*3.3/4096.0;
+		/*
+		 * 50 - 150 om = 70A
+		 * 150 - 330 om = 32A
+		 * 330 - 1000 om = 20A
+		 * 1000 - 2700 om = 13A
+		 */
+
+		if(     PP_value > 0.07 && PP_value < 0.21){
+			cable_current = 70;}
+		else if(PP_value > 0.21 && PP_value < 0.43){
+			cable_current = 32;}
+		else if(PP_value > 0.43 && PP_value < 1.0){
+			cable_current = 20;}
+		else if(PP_value > 1.0 && PP_value < 1.81){
+			cable_current = 13;}
+		else if(PP_value <= 0.07 || PP_value >= 1.81){
+			cable_current = 0;}
+}
+
+const uint32_t CP_adc_arr = 500;
+uint32_t CP_adc[500];
+float CP_val_MAX = 0;
+
+void read_CP(void)
+{
+ 	 HAL_ADC_ConfigChannel(&hadc2, ADC_CHANNEL_3);
+ 	 for(uint32_t i = 0; i < CP_adc_arr; i++)
+ 	 {
+		HAL_ADC_Start(&hadc2);
+		HAL_ADC_PollForConversion(&hadc2,100);
+		CP_adc[i] = (uint32_t) HAL_ADC_GetValue(&hadc2);
+		HAL_ADC_Stop(&hadc2);
+ 	 }
+ 	 HAL_ADC_ConfigChannel(&hadc1, ADC_CHANNEL_4);
+ 	 CP_val_MAX = 0;
+ 	 for(uint32_t i = 0; i < CP_adc_arr; i++)
+ 	 {
+ 		 if(CP_adc[i] > CP_val_MAX)
+ 		 {
+ 			CP_val_MAX = (float)CP_adc[i];
+ 		 }
+ 	 }
+ 	CP_val_MAX = CP_val_MAX*0.004914 + 0.15;
+}
+
+const uint32_t adc_arr = 2000;
+uint32_t adc_a[2000];
+uint32_t adc_b[2000];
+uint32_t adc_c[2000];
+uint32_t adc_max_a;
+uint32_t adc_max_b;
+uint32_t adc_max_c;
+float adc_result_a;
+float adc_result_b;
+float adc_result_c;
+
+void read_phase_A(void)
+{
+	HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_1);   // main channel
+	HAL_TIM_IC_Stop(&htim2, TIM_CHANNEL_2);
+
+
+	ADC_ChannelConfTypeDef sConfig = {0};
+	sConfig.Channel = ADC_CHANNEL_4;
+	sConfig.Rank = 1;
+	sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+	{
+	Error_Handler();
+	}
+
+	HAL_ADC_ConfigChannel(&hadc1, ADC_CHANNEL_4);
+	for(uint32_t i = 0; i < adc_arr; i++)
+	{
+		HAL_ADC_Start(&hadc1);
+		HAL_ADC_PollForConversion(&hadc1,100);
+		adc_a[i] = (uint32_t) HAL_ADC_GetValue(&hadc1);
+		HAL_ADC_Stop(&hadc1);
+	}
+	adc_max_a = 0;
+	for(uint32_t i = 0; i < adc_arr; i++)
+	{
+		 if(adc_max_a < adc_a[i])
+		 {
+			 adc_max_a = adc_a[i];
+		 }
+	}
+	adc_result_a = ((float)adc_max_a*3.3/4096.0-1.22662)*1358.88/sqrt(2);
+	if(adc_result_a < 12.0)
+	{
+		adc_result_a = 0.0;
+	}
+	HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);   // main channel
+	HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_2);
+}
+
+void read_phase_B(void)
+{
+
+	HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_1);   // main channel
+	HAL_TIM_IC_Stop(&htim2, TIM_CHANNEL_2);
+
+
+	ADC_ChannelConfTypeDef sConfig = {0};
+	sConfig.Channel = ADC_CHANNEL_5;
+	sConfig.Rank = 1;
+	sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+	{
+	Error_Handler();
+	}
+
+	//HAL_ADC_ConfigChannel(&hadc1, ADC_CHANNEL_5);
+	for(uint32_t i = 0; i < adc_arr; i++)
+	{
+		HAL_ADC_Start(&hadc1);
+		HAL_ADC_PollForConversion(&hadc1,100);
+		adc_b[i] = (uint32_t) HAL_ADC_GetValue(&hadc1);
+		HAL_ADC_Stop(&hadc1);
+	}
+	adc_max_b = 0;
+	for(uint32_t i = 0; i < adc_arr; i++)
+	{
+		 if((float)adc_b[i] > adc_max_b)
+		 {
+			 adc_max_b = adc_b[i];
+		 }
+	}
+	adc_result_b = ((float)adc_max_b*3.3/4096.0-1.22662)*1358.88/sqrt(2);
+	if(adc_result_b < 12.0)
+	{
+		adc_result_b = 0.0;
+	}
+	HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);   // main channel
+	HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_2);
+}
+
+void read_phase_C(void)
+{
+	HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_1);   // main channel
+	HAL_TIM_IC_Stop(&htim2, TIM_CHANNEL_2);
+
+	ADC_ChannelConfTypeDef sConfig = {0};
+	sConfig.Channel = ADC_CHANNEL_6;
+	sConfig.Rank = 1;
+	sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+	{
+	Error_Handler();
+	}
+
+
+	//HAL_ADC_ConfigChannel(&hadc1, ADC_CHANNEL_6);
+	for(uint32_t i = 0; i < adc_arr; i++)
+	{
+		HAL_ADC_Start(&hadc1);
+		HAL_ADC_PollForConversion(&hadc1,100);
+		adc_c[i] = (uint32_t) HAL_ADC_GetValue(&hadc1);
+		HAL_ADC_Stop(&hadc1);
+	}
+	adc_max_c = 0;
+	for(uint32_t i = 0; i < adc_arr; i++)
+	{
+		 if((float)adc_c[i] > adc_max_c)
+		 {
+			 adc_max_c = adc_c[i];
+		 }
+	}
+	adc_result_c = ((float)adc_max_c*3.3/4096.0-1.22662)*1358.88/sqrt(2);
+	if(adc_result_c < 12.0)
+	{
+		adc_result_c = 0.0;
+	}
+	HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);   // main channel
+	HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_2);
+}
+
+
 
 uint32_t ICValue;
 float Duty;
 float Frequency;
 uint32_t CP_Voltage = 0;
+
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
 	if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)  // If the interrupt is triggered by channel 1
@@ -123,6 +335,9 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 
 
 uint8_t menu = 0;
+uint8_t menu_hor = 0;
+uint8_t menu_ver = 0;
+char status = 'A';
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -138,41 +353,225 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
    //__BUTTONS_____________________________________________
    if(GPIO_Pin == GPIO_PIN_1)
    {
-	   set_status_A();
-	   menu = 1;
-	   Frequency = 0;
-	   Duty = 0;
+//	   set_status_A();
+//	   menu = 1;
+//	   Frequency = 0;
+//	   Duty = 0;
    }
    if(GPIO_Pin == GPIO_PIN_3)
    {
-	   set_status_B();
-	   menu = 3;
+	  switch (menu_hor) {
+		case 0:
+			menu_hor = 1;
+			break;
+		case 1:
+			menu_hor = 2;
+			break;
+		case 2:
+			menu_hor = 0;
+			break;
+		default:
+			break;
+	  }
    }
-   if(GPIO_Pin == GPIO_PIN_4)
-   {
-	   set_status_C();
-	   menu = 4;
-   }
-   if(GPIO_Pin == GPIO_PIN_5)
-   {
-	   set_status_D();
-	   menu = 5;
-   }
+
    if(GPIO_Pin == GPIO_PIN_6)
    {
-	   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);   // main channel
-	   HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_2);
-	   menu = 6;
+	  switch (menu_hor) {
+		case 0:
+			menu_hor = 2;
+			break;
+		case 1:
+			menu_hor = 0;
+			break;
+		case 2:
+			menu_hor = 1;
+			break;
+		default:
+			break;
+	  }
    }
+
+   if(GPIO_Pin == GPIO_PIN_5)
+   {
+	  switch (menu_ver) {
+		case 0:
+			menu_ver = 1;
+			break;
+		case 1:
+			menu_ver = 2;
+			break;
+		case 2:
+			menu_ver = 3;
+			break;
+		case 3:
+			menu_ver = 4;
+			break;
+		case 4:
+			menu_ver = 0;
+			break;
+		default:
+			break;
+	  }
+   }
+
+   if(GPIO_Pin == GPIO_PIN_4)
+   {
+	  switch (menu_ver) {
+		case 0:
+			menu_ver = 4;
+			break;
+		case 1:
+			menu_ver = 0;
+			break;
+		case 2:
+			menu_ver = 1;
+			break;
+		case 3:
+			menu_ver = 2;
+			break;
+		case 4:
+			menu_ver = 3;
+			break;
+		default:
+			break;
+	  }
+   }
+   switch (menu_ver) {
+  		case 0:
+  			status = 'A';
+  			set_status_A();
+  			break;
+  		case 1:
+  			status = 'B';
+  			set_status_B();
+  			break;
+  		case 2:
+  			status = 'C';
+  			set_status_C();
+  			break;
+  		case 3:
+  			status = 'D';
+  			set_status_D();
+  			break;
+  		case 4:
+  			status = 'E';
+  			set_status_E();
+  			break;
+  		default:
+  			break;
+  	  }
    if(GPIO_Pin == GPIO_PIN_7)
    {
-	   HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_1);   // main channel
-	   HAL_TIM_IC_Stop(&htim2, TIM_CHANNEL_2);
-	   menu = 7;
+//	   HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_1);   // main channel
+//	   HAL_TIM_IC_Stop(&htim2, TIM_CHANNEL_2);
+//	   menu = 7;
    }
 
    //______________________________________________________
 }
+
+uint32_t station_current;
+void duty_read()
+{
+	if(     Duty < 3)
+		station_current = 0;
+	else if(Duty >=3 && Duty < 7)
+		station_current = 999;
+	else if(Duty >=7 && Duty < 8)
+		station_current = 0;
+	else if(Duty >=8 && Duty < 10)
+		station_current = 6;
+	else if(Duty >=10 && Duty < 85)
+		station_current = Duty * 0.6;
+	else if(Duty >=85 && Duty < 96)
+		station_current = (Duty-64)*2.5;
+	else if(Duty >=96 && Duty < 97)
+		station_current = 80;
+	else if(Duty >=97 && Duty < 100)
+		station_current = 0;
+}
+
+void lcd_print_info()
+{
+	if(menu_hor == 0)
+	{
+		Frequency = 0;
+		Duty = 0;
+		read_PP();
+		read_CP();
+		read_phase_A();
+		read_phase_B();
+		read_phase_C();
+		duty_read();
+		lcd_clear_display();
+		lcd_set_cursor(0, 0);
+		sprintf(str_tx, "статус = %c ", status);
+		lcd_draw_text(str_tx);
+		lcd_set_cursor(0, 1);
+		if(cable_current != 0)
+			sprintf(str_tx, "мощ.каб. = %u А   ", cable_current);
+		else
+			sprintf(str_tx, "мощ.каб. = ошибка", cable_current);
+		lcd_draw_text(str_tx);
+		lcd_set_cursor(0, 2);
+		if(station_current == 0 && cable_current == 0)
+			sprintf(str_tx, "ошибка станции     ", Duty);
+		else if(station_current == 999)
+			sprintf(str_tx, "ст. быстр. зар.!   ");
+		else
+			sprintf(str_tx, "мощ.ст. = %u А", station_current);
+		lcd_draw_text(str_tx);
+		lcd_set_cursor(0, 3);
+		if((adc_result_a > adc_result_b - 44) && (adc_result_a < adc_result_b + 44) && (adc_result_a > adc_result_c - 44) && (adc_result_a < adc_result_c + 44) && (adc_result_b > adc_result_c - 44) && (adc_result_b < adc_result_c + 44))
+			sprintf(str_tx, "напр. фаз = ОК    ");
+		else
+			sprintf(str_tx, "напр. фаз = ОШИБКА");
+		lcd_draw_text(str_tx);
+	}
+
+	if(menu_hor == 1)
+	{
+		 Frequency = 0;
+		 Duty = 0;
+		 read_CP();
+	  	 lcd_clear_display();
+		 lcd_set_cursor(0, 0);
+		 sprintf(str_tx, "статус = %c ", status);
+		 lcd_draw_text(str_tx);
+		 lcd_set_cursor(0, 1);
+		 sprintf(str_tx, "Ст. = %.2f Гц  ", Frequency);
+		 lcd_draw_text(str_tx);
+		 lcd_set_cursor(0, 2);
+		 sprintf(str_tx, "Св. = %.2f проц.   ", Duty);
+		 lcd_draw_text(str_tx);
+		 lcd_set_cursor(0, 3);
+		 sprintf(str_tx, "Ам. = %.2f В   ", CP_val_MAX);
+		 lcd_draw_text(str_tx);
+	}
+	if(menu_hor == 2)
+	{
+		 read_phase_A();
+		 read_phase_B();
+		 read_phase_C();
+		 HAL_Delay(100);
+	  	 lcd_clear_display();
+		 lcd_set_cursor(0, 0);
+		 sprintf(str_tx, "статус = %c", status);
+		 lcd_draw_text(str_tx);
+		 lcd_set_cursor(0, 1);
+		 //*(3.3/4096.0-1.22662)*1358.88
+		 sprintf(str_tx, "фаза A = %.1f В   ", adc_result_a);
+		 lcd_draw_text(str_tx);
+		 lcd_set_cursor(0, 2);
+		 sprintf(str_tx, "фаза B = %.1f В   ", adc_result_b);
+		 lcd_draw_text(str_tx);
+		 lcd_set_cursor(0, 3);
+		 sprintf(str_tx, "фаза C = %.1f В   ", adc_result_c);
+		 lcd_draw_text(str_tx);
+	}
+}
+
 
 
 
@@ -213,104 +612,52 @@ int main(void)
   MX_ADC3_Init();
   MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
-  uint8_t str_tx[100];
-  set_status_A();
-  lcd_initialization();
-  HAL_Delay(200);
 
-  lcd_set_cursor(0, 0);
-  sprintf(str_tx, "Лямбда электроника", menu);
-  lcd_draw_text(str_tx);
-  lcd_set_cursor(0, 1);
-  sprintf(str_tx, "при поддержке", Frequency);
-  lcd_draw_text(str_tx);
-  lcd_set_cursor(0, 2);
-  sprintf(str_tx, "Фонда", Frequency);
-  lcd_draw_text(str_tx);
 
-//  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);   // main channel
-//  HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_2);
+
+  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);   // main channel
+  HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_2);
 
   //РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ СЌРєСЂР°РЅР°
 
-  uint32_t pretick = 0;
-  uint32_t posttick = 0;
+//  uint32_t pretick = 0;
+//  uint32_t posttick = 0;
+  hello_world();
 
 
-  const uint32_t adc_arr = 3000;
-  uint32_t adc[adc_arr];
-  const uint32_t CP_adc_arr = 500;
-  uint32_t CP_adc[CP_adc_arr];
 
-  HAL_ADC_ConfigChannel(&hadc1, ADC_CHANNEL_4);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  lcd_print_info();
+	  HAL_Delay(200);
 //	  uint32_t ICValue;
 //	  float Duty;
 //	  float Frequency;
 
-	  	 HAL_ADC_ConfigChannel(&hadc2, ADC_CHANNEL_3);
-	  	 for(uint32_t i = 0; i < CP_adc_arr; i++)
-	  	 {
-			HAL_ADC_Start(&hadc2);
-			HAL_ADC_PollForConversion(&hadc2,100);
-			CP_adc[i] = (uint32_t) HAL_ADC_GetValue(&hadc2);
-			HAL_ADC_Stop(&hadc2);
-	  	 }
-	  	 HAL_ADC_ConfigChannel(&hadc1, ADC_CHANNEL_4);
-	  	 uint32_t CP_val_MAX = 0;
-	  	 for(uint32_t i = 0; i < CP_adc_arr; i++)
-	  	 {
-	  		 if(CP_adc[i] > CP_val_MAX)
-	  		 {
-	  			CP_val_MAX = CP_adc[i];
-	  		 }
-	  	 }
-	  	 lcd_clear_display();
-		 lcd_set_cursor(0, 0);
-		 sprintf(str_tx, "menu = %d", menu);
-		 lcd_draw_text(str_tx);
-		 lcd_set_cursor(0, 1);
-		 sprintf(str_tx, "частота = %.2f", Frequency);
-		 lcd_draw_text(str_tx);
-		 lcd_set_cursor(0, 2);
-		 sprintf(str_tx, "скважность = %.2f", Duty);
-		 lcd_draw_text(str_tx);
-		 lcd_set_cursor(0, 3);
-		 sprintf(str_tx, "амплитуда = %.2f", (float)CP_val_MAX*0.004914 + 0.15);
-		 lcd_draw_text(str_tx);
+
+
+//		 lcd_draw_text(str_tx);
 	    sprintf(str_tx, "_____________START____________________ \r\n");
 	    CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
 
-	    pretick = HAL_GetTick();
-
-	    for(uint16_t i = 0; i < adc_arr; i++)
-	    {
-			HAL_ADC_Start(&hadc1);
-			HAL_ADC_PollForConversion(&hadc1,100);
-			adc[i] = (uint32_t) HAL_ADC_GetValue(&hadc1);
-			HAL_ADC_Stop(&hadc1);
-	    }
-
-		posttick = HAL_GetTick();
-
-		sprintf(str_tx, "Tick = %d \r\n", posttick - pretick);
-		CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
-
 		for(uint16_t i = 0; i < adc_arr; i++)
 		{
-			sprintf(str_tx, "%.1f \r\n", ((float)adc[i]*3.3/4096.0-1.22662)*1358.88);
+			sprintf(str_tx, "%.1f \t %.1f \t %.1f  \r\n", ((float)adc_a[i]*3.3/4096.0-1.22662)*1358.88, ((float)adc_b[i]*3.3/4096.0-1.22662)*1358.88, ((float)adc_c[i]*3.3/4096.0-1.22662)*1358.88);
 			CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
 		}
 		sprintf(str_tx, " \r\n");
 		CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
-		sprintf(str_tx, "_____________STOP______________________\r\n\r\n");
-		CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
-		HAL_Delay(100);
+
+//		sprintf(str_tx, "%.1f \r\n", ((float)adc_max_a*3.3/4096.0-1.22662)*1358.88);
+//		CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
+//		sprintf(str_tx, "_____________STOP______________________\r\n\r\n");
+//		CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
+//		HAL_Delay(100);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
